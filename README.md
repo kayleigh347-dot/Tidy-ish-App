@@ -1,4 +1,5 @@
-# Mission Control
+Tidy-ish 
+this is a personal app to help my adhd brain tidy my house and not get distracted. if you happen to come across this, it is made with AI, i can't code,  and add a household that syncs wont work for you. but should save locally, may have my tasks on it though lol. its also tempermental at the moment i am trying to fix it.
 
 [Open the app](https://kayleigh347-dot.github.io/Messy-House-App/)
 
