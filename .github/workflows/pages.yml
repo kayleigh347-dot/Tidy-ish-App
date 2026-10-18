@@ -1,4 +1,4 @@
-name: Deploy Mission Control to GitHub Pages
+name: Publish Tidy-ish HTML
 on:
   push:
     branches: [main]
@@ -12,35 +12,37 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - name: Assemble reviewed app and image upload parts
-        run: |
-          mkdir -p _app/assets
-          cp -R 1-app/. _app/
-          cp -R 2-assets/assets/. _app/assets/
-          for part in part-*; do
-            if [ -d "$part/2-assets/assets" ]; then
-              cp -R "$part/2-assets/assets/." _app/assets/
-            fi
-          done
-          cp -R 3-tests/tests _app/tests
+      - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: npm
-          cache-dependency-path: 1-app/package-lock.json
-      - run: npm ci
-        working-directory: _app
-      - run: npm test
-        working-directory: _app
-      - run: npm run build
-        working-directory: _app
-        env:
-          VAPID_PUBLIC_KEY: ${{ vars.VAPID_PUBLIC_KEY || 'BN22HnEySrYZnOKjrZYXDkRe6QwbUwNrW1szraL_x-zMgQadX7QliejkshTq3H2zn5DGwBlBEn9RJ_WcU0hcuKQ' }}
+      - name: Test the HTML app
+        run: |
+          node --test 1-app/tests/model.test.cjs
+          for file in app.js catalogue.js model.js sharing-model.js sharing.js mess-phrase.js; do
+            node --check "1-app/$file"
+          done
+      - name: Assemble lightweight GitHub Pages site
+        run: |
+          set -eu
+          mkdir -p _site/assets
+          # Reuse existing artwork, assembled in the original precedence order.
+          if [ -d 2-assets/assets ]; then cp -R 2-assets/assets/. _site/assets/; fi
+          for part in part-[0-9]*; do
+            if [ -d "$part/2-assets/assets" ]; then
+              cp -R "$part/2-assets/assets/." _site/assets/
+            fi
+          done
+          # HTML files are the sole live app. New/changed art takes precedence.
+          cp 1-app/index.html 1-app/style.css 1-app/app.js \
+             1-app/catalogue.js 1-app/model.js 1-app/sharing-model.js \
+             1-app/sharing.js 1-app/mess-phrase.js 1-app/sw.js _site/
+          if [ -d 1-app/assets ]; then cp -R 1-app/assets/. _site/assets/; fi
+          node 1-app/tests/check-site.cjs _site
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v4
         with:
-          path: _app/dist
+          path: _site
   deploy:
     needs: build
     runs-on: ubuntu-latest
@@ -51,6 +53,6 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Deploy
+      - name: Publish new HTML site
         id: deployment
         uses: actions/deploy-pages@v4

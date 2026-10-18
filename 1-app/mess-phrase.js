@@ -13,17 +13,14 @@ export function messPhrase(messPercent){
  if(clean>=60)return 'slipping-ish';
  if(clean>=50)return 'whoah Halfway there';
  if(clean>=40)return 'Messy-ish';
- if(clean>=20)return 'Messy-no-ish';
- if(clean>=15)return 'chaos close';
+ if(clean>=20)return 'chaos close';
  if(clean>=5)return 'Chaos-ish 👻';
  if(clean>0)return 'only way is up';
- return '';
+ return ;
 }
 export function isSparkling(messPercent){return cleanPercent(messPercent)>=95}
 
 export function barState(messPercent,state){
- const clean=cleanPercent(messPercent);
- if(clean<25)return 'DISASTER';
- if(clean<50)return 'MESSY';
- return state==='SPOTLESS'?'SPOTLESS':'CLEAN';
+ if(state==='DISASTER'||state==='SPOTLESS')return state;
+ return cleanPercent(messPercent)<60?'MESSY':'CLEAN';
 }
