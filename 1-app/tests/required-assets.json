@@ -1,5 +1,4 @@
 [
-  "assets/.DS_Store",
   "assets/app-icons/icon-192.png",
   "assets/app-icons/icon-512.png",
   "assets/app-icons/icon.svg",
@@ -77,7 +76,6 @@
   "assets/room-art/room-print-disaster.png",
   "assets/room-art/room-print-messy.png",
   "assets/room-art/room-print-spotless.png",
-  "assets/sprites/.DS_Store",
   "assets/sprites/bathroom-states.webp",
   "assets/sprites/cats-states.webp",
   "assets/sprites/craft-states.webp",
