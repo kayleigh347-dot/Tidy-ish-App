@@ -1,6 +1,6 @@
 # Mission Control
 
-[Open the app](https://kayleigh347-dot.github.io/Messy-House-App/)
+[Open the app](https://kayleigh347-dot.github.io/Tidy-ish-App/)
 
 A mobile-first house task organiser with room creatures, recurring jobs, household sharing, local storage and Supabase syncing.
 
