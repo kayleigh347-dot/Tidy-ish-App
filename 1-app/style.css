@@ -10,3 +10,64 @@
 .brand{background:#28104A;height:48px;min-height:48px;padding:2px 5px;justify-content:space-between}.brand-logo{height:44px;max-width:calc(100% - 94px);overflow:hidden;display:block;flex:none}.brand .global button{background:transparent;min-height:44px;height:44px;width:44px;min-width:44px;padding:5px}.brand .global img{width:24px;height:24px;max-width:none}.brand .global{flex:none}
 .room-scene{aspect-ratio:1.6;max-height:280px}.room-scene>img{width:100%;height:100%;max-height:none;object-fit:cover;object-position:center}.room-scene .guardian{height:62%;bottom:2%;left:56%}
 .toolbar [data-action=view]{background:var(--plum);color:var(--text)}.toolbar .search-icon{background:var(--twilight);color:var(--text);min-width:44px;width:44px;font-size:23px;padding:3px}.toolbar{flex-wrap:nowrap;gap:5px}.toolbar [data-action=add-task]{margin-left:auto}.toolbar button{white-space:nowrap}
+
+
+/* Doing Now: localised facelift only. Keep all existing purple/teal/gold gradients,
+   illustrated tabs and navigation assets; do not touch household board contents. */
+@font-face{font-family:"Tidy Fredoka";src:url("assets/fonts/Fredoka.ttf") format("truetype");font-weight:300 700;font-style:normal;font-display:swap}
+.doing-board{font-family:"Tidy Fredoka",ui-rounded,"Trebuchet MS",system-ui,sans-serif;padding-bottom:calc(18px + env(safe-area-inset-bottom))}
+.doing-board .tabs.nested{margin-bottom:11px}
+.doing-board .tabs button{font-size:.86rem;font-weight:650;padding-inline:12px 18px;background:linear-gradient(155deg,#5a3c62,#384466);color:#deedf0}
+.doing-board .tabs button:nth-child(2){background:linear-gradient(150deg,#bb799f,#864d81);color:#fff2f7}
+.doing-board .tabs button:nth-child(3){background:linear-gradient(150deg,#384466,#3a6a6b)}
+.doing-board .tabs button.active{color:#fff;box-shadow:inset 0 -4px var(--gold);filter:brightness(1.19)}
+.doing-toolbar{display:flex;align-items:center;justify-content:space-between;gap:7px;margin:10px 0 12px}
+.doing-view{display:flex;border:1px solid #89b7c277;border-radius:14px;overflow:hidden;background:linear-gradient(150deg,#384466,#2c263f)}
+.doing-view button{min-height:38px;border:0;border-radius:0;background:transparent;color:#c8dce3;padding:7px 10px;font-size:.87rem;font-weight:500}
+.doing-view button.selected{background:linear-gradient(150deg,#498496,#3a6a6b);color:#fff;font-weight:750;outline:0}
+.doing-toolbar .add-task-button{padding:7px 12px;min-height:39px;font-size:.88rem;background:linear-gradient(155deg,#89b7c2,#498496);color:#21012a}
+.doing-board .room-task-section{margin:11px 0 14px}
+.doing-board .room-heading{display:flex;align-items:center;justify-content:space-between;gap:6px;padding:7px 9px;border:1px solid #89b7c266;border-radius:14px 14px 9px 9px;background:linear-gradient(115deg,#5a3c62 0%,#384466 63%,#2c263f 100%);box-shadow:inset 0 1px #89b7c222,0 2px 7px #0003}
+.doing-board .room-heading-identity{display:flex;align-items:center;min-width:0;flex:1;gap:6px}
+.doing-board .room-heading .guardian-thumb{width:37px;height:44px;flex:0 0 37px}
+.doing-board .room-heading .room-name{font-family:inherit;color:#f0e5f4;font-size:1.28rem;font-weight:680;min-height:40px;padding:3px 0;overflow-wrap:anywhere}
+.doing-board .room-heading-controls{display:flex;align-items:center;gap:4px;flex:none}
+.doing-board .room-heading-controls button{font-size:.75rem;min-height:34px;padding:5px 8px;border-radius:10px;white-space:nowrap}
+.doing-board .room-focus{background:linear-gradient(155deg,#a6d4dc,#89b7c2);color:#21012a}
+.doing-board .room-tools{background:linear-gradient(155deg,#384466,#2c263f);color:#e4dce9}
+.doing-board .doing-task{padding:9px 10px 8px;border-radius:14px;margin:7px 0;background:linear-gradient(125deg,#5a3c62 0%,#384466 38%,#2c263f 92%);border:1px solid #89b7c24a;box-shadow:inset 0 1px #ffffff17,0 2px 6px #0003}
+.doing-board .doing-task:nth-of-type(even){background:linear-gradient(125deg,#384466,#3b3851 42%,#2c263f)}
+.doing-board .doing-task::after{display:none}
+.doing-task-main{display:flex;align-items:flex-start;gap:8px;min-width:0}
+.doing-task-main .doing-select{min-height:32px;height:auto;width:auto;min-width:0;max-width:74px;flex:0 0 auto;border-radius:9px;padding:6px 8px;font-size:.71rem;line-height:1.08;color:#fff;background:linear-gradient(160deg,#5a3c62,#384466);border-color:#89b7c265;box-shadow:none;white-space:normal}
+.doing-task-main .doing-task-title{flex:1;min-width:0;overflow-wrap:anywhere;white-space:normal;text-align:left;line-height:1.25;font-size:1.12rem;font-weight:650;color:#f1eef4;padding:4px 0;min-height:34px}
+.doing-task-main .doing-task-title .expand-indicator{color:#f8c662;font-size:.88rem;margin-left:4px}
+.doing-subtask-count{flex:none;margin:3px 0 0;font-size:.83rem;font-weight:650;color:#e5f2f4;background:#21012a77;border:1px solid #89b7c255;padding:3px 7px;border-radius:9px}
+.doing-meta{display:flex;flex-wrap:wrap;gap:3px 12px;margin:4px 0 5px;padding:5px 0;border-top:1px solid #ffffff20;color:#c8dfe4;font-size:.82rem;line-height:1.35}
+.doing-task-actions{display:flex;align-items:center;justify-content:flex-end;gap:5px;margin-top:7px}
+.doing-task-actions button{min-height:33px;padding:5px 9px;font-size:.78rem;border-radius:10px}
+.doing-task-actions .first{color:#21012a;background:linear-gradient(145deg,#f8d481,#f8c662);border-color:#f8c662}
+.doing-task-actions .last{color:#21012a;background:linear-gradient(145deg,#b9dbe1,#89b7c2);border-color:#89b7c2}
+.doing-task-actions .doing-more{background:#384466;border-color:#89b7c255;color:#eff3f4;font-size:1.25rem;padding:0 9px;min-width:35px}
+.doing-task-actions .doing-complete,.doing-child .child-done{margin-left:auto;color:#fff;background:linear-gradient(160deg,#568b76,#2e755d);border:1px solid #82c7a2;font-size:.86rem;font-weight:700;box-shadow:inset 0 1px #c4ffcd3d}
+.doing-task-actions .doing-complete{white-space:nowrap}
+.doing-board .doing-child{display:flex;align-items:center;gap:6px;margin:4px 0 0 5px;padding:5px 6px;border:0;border-radius:9px;background:#89b7c21c;min-height:42px}
+.doing-board .doing-child:nth-child(even){background:#bb799f1c}
+.doing-board .doing-child.nested-child{margin-left:18px}
+.doing-board .doing-child.drag-over{outline:2px solid var(--gold);outline-offset:-2px;background:#89b7c24a}
+.doing-child .child-grip{flex:0 0 29px;width:29px;min-height:30px;border:0;border-radius:7px;padding:0;color:#d7d4e7;background:#21012a55;font-size:1.35rem;touch-action:none;user-select:none;cursor:grab}
+.doing-child .child-grip:active{cursor:grabbing}
+.doing-child .doing-child-title{flex:1;min-width:0;overflow-wrap:anywhere;font-size:.99rem;line-height:1.25;color:#f0ecf2}
+.doing-child .child-done,.doing-child .child-undo{flex:none;min-height:33px;padding:6px 9px;border-radius:9px;font-size:.76rem;line-height:1.15}
+.doing-child .child-undo{color:#e5edf0;background:#384466;border-color:#89b7c288}
+.doing-child.child-finished{opacity:.82}
+.doing-child.child-finished .doing-child-title{text-decoration:line-through}
+.doing-finished{margin:19px 0 10px;border-radius:14px;border:1px solid #89b7c255;overflow:hidden;background:linear-gradient(135deg,#384466,#2c263f)}
+.doing-finished h2{font-family:inherit;font-size:1.15rem;margin:0;padding:10px 12px;background:linear-gradient(115deg,#5a3c62,#384466);color:#eff0f4}
+.doing-finished-row{display:flex;align-items:center;justify-content:space-between;gap:7px;padding:7px 11px;border-top:1px solid #89b7c226;min-height:45px;font-size:.95rem;color:#cedfe5}
+.doing-finished-row:nth-child(2n){background:#89b7c20b}
+.doing-finished-row span{min-width:0;overflow-wrap:anywhere}
+.doing-finished-row .doing-undo{flex:none;min-height:32px;border-color:#89b7c266;background:#384466;color:#f1ecf5;font-size:.82rem;padding:5px 11px}
+.doing-menu-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.doing-menu-grid button{display:flex;align-items:center;justify-content:center;gap:5px;font-size:.88rem;border-radius:12px;min-height:41px}
+@media(max-width:370px){.doing-board .room-heading{flex-wrap:wrap}.doing-board .room-heading-controls{margin-left:auto}.doing-board .room-heading .room-name{font-size:1.14rem}.doing-task-main .doing-task-title{font-size:1.03rem}.doing-child .child-done{font-size:.7rem;padding-inline:7px}.doing-board .tabs button{font-size:.77rem;padding-inline:9px 14px}}

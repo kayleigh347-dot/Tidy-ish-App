@@ -3,6 +3,10 @@
 'use strict';
 const M=window.TidyModel, KEY='tidyish-html-v023-board-v1'+(new URLSearchParams(location.search).get('qa')==='1'?'-qa':''), $=s=>document.querySelector(s), esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let board,storageError='',lastSaved='',route='home',roomId='kitchen',tab='tasks',doingTab='doing',sideTab='all',search='',detailed=false,deleted=null,openTasks=new Set(),collapsed=new Set(),dialogDirty=false,dialogSave=null,dialogCleanup=null,pendingExternal=null,noticeTimer,music=null;
+// Doing Now is a personal display preference, not a household task or sync mutation.
+const DOING_VIEW_KEY=KEY+'-doing-view';
+let doingDetailed=false,nextDoingExpiry=0;
+try{doingDetailed=localStorage.getItem(DOING_VIEW_KEY)==='detailed'}catch{}
 const app=$('#app'),editor=$('#editor');
 try{lastSaved=localStorage.getItem(KEY)||'';board=lastSaved?M.normalize(JSON.parse(lastSaved)):M.board();M.refresh(board);if(!lastSaved){localStorage.setItem(KEY,JSON.stringify(board));lastSaved=JSON.stringify(board);}}catch(e){storageError=e.message;board=M.board();}
 const room=id=>board.rooms.find(r=>r.id===id),task=id=>board.tasks.find(t=>t.id===id),rooms=()=>board.rooms.filter(r=>!r.archived),F=()=>board.features;
@@ -36,14 +40,65 @@ let uiSearch=false;
 function visibleTasks(){let list=route==='doing'?(doingTab==='attention'?board.tasks.filter(t=>t.attention&&!M.paused(t)):M.doing(board)):route==='room'?board.tasks.filter(t=>t.room===roomId&&!M.paused(t)&&(tab==='side'?t.side:tab==='homeless'?false:!t.side)):board.tasks.filter(t=>t.side&&!M.paused(t)&&(sideTab==='all'||t.sideKind===sideTab));
 if(route==='room'&&tab==='side'&&sideTab!=='all')list=list.filter(t=>t.sideKind===sideTab);if(search)list=list.filter(t=>(t.title+' '+t.notes+' '+t.children.map(c=>c.title).join(' ')).toLowerCase().includes(search.toLowerCase()));return [...list.filter(t=>!t.done),...list.filter(t=>t.done)];}
 function taskList(list){if(!list.length)return '<p class="empty">No tasks to show</p>';return list.map(t=>taskCard(t)).join('');}
-function taskCard(t){const expanded=openTasks.has(t.id);return `<article class="task ${t.done?'done':''}" data-task-id="${esc(t.id)}" draggable="${!t.done}"><div class="row">${button(t.doing?'Not on it':"I’m on it!",'select-task',t.id,'select-task',`aria-pressed="${t.doing}" aria-label="${t.doing?'Remove from':'Add to'} Doing Now: ${esc(t.title)}"`)}${button(`${esc(t.title)}${t.children.length?` <span class="small">${t.children.filter(c=>c.done).length}/${t.children.length} ${expanded?'▾':'▸'}</span>`:''}`,'expand',t.id,'ghost grow task-title',`aria-expanded="${expanded}"`)}${button('+','add-child',t.id,'ghost','aria-label="Add subtask to '+esc(t.title)+'"')}</div>${detailed?`<div class="task-meta">${esc(room(t.room)?.name||'Homeless')} · Priority ${t.priority}${t.estimate?' · '+t.estimate+' min':''}${t.assigned?' · '+esc(t.assigned):''}${t.dueDate?' · '+esc(t.dueDate):''}</div>`:''}${expanded?childrenHtml(t):''}<div class="actions">${!t.done?button('First','first',t.id,'first')+button('Last','last',t.id,'last'):''}${button(stopwatch,'timer',t.id,'icon-button',`aria-label="Stopwatch for ${esc(t.title)}"`)}${button('✎','edit-task',t.id,'edit-icon',`aria-label="Edit ${esc(t.title)}"`)}${button('⌫','delete-task',t.id,'delete-icon',`aria-label="Delete ${esc(t.title)}"`)}${button(t.done?'Undo':route==='doing'?'✓ Done It':'✓ I did a thing!','complete',t.id,'complete')}</div>${detail('Details & options',`${t.notes?`<p>${esc(t.notes).replace(/\n/g,'<br>')}</p>`:''}${t.tools?`<p class="small">Tools: ${esc(t.tools).replace(/\n/g,', ')}</p>`:''}${t.image?`<img class="attachment" src="${safeImage(t.image)}" alt="Task attachment">`:''}<div class="row">${button('Save reusable','save-template',t.id,'ghost')}${button(t.paused?'Resume task':'Pause task','pause-task',t.id,'ghost')}</div>`)}</article>`;}
+function taskCard(t){if(route==='doing')return doingTaskCard(t);const expanded=openTasks.has(t.id);return `<article class="task ${t.done?'done':''}" data-task-id="${esc(t.id)}" draggable="${!t.done}"><div class="row">${button(t.doing?'Not on it':"I’m on it!",'select-task',t.id,'select-task',`aria-pressed="${t.doing}" aria-label="${t.doing?'Remove from':'Add to'} Doing Now: ${esc(t.title)}"`)}${button(`${esc(t.title)}${t.children.length?` <span class="small">${t.children.filter(c=>c.done).length}/${t.children.length} ${expanded?'▾':'▸'}</span>`:''}`,'expand',t.id,'ghost grow task-title',`aria-expanded="${expanded}"`)}${button('+','add-child',t.id,'ghost','aria-label="Add subtask to '+esc(t.title)+'"')}</div>${detailed?`<div class="task-meta">${esc(room(t.room)?.name||'Homeless')} · Priority ${t.priority}${t.estimate?' · '+t.estimate+' min':''}${t.assigned?' · '+esc(t.assigned):''}${t.dueDate?' · '+esc(t.dueDate):''}</div>`:''}${expanded?childrenHtml(t):''}<div class="actions">${!t.done?button('First','first',t.id,'first')+button('Last','last',t.id,'last'):''}${button(stopwatch,'timer',t.id,'icon-button',`aria-label="Stopwatch for ${esc(t.title)}"`)}${button('✎','edit-task',t.id,'edit-icon',`aria-label="Edit ${esc(t.title)}"`)}${button('⌫','delete-task',t.id,'delete-icon',`aria-label="Delete ${esc(t.title)}"`)}${button(t.done?'Undo':route==='doing'?'✓ Done It':'✓ I did a thing!','complete',t.id,'complete')}</div>${detail('Details & options',`${t.notes?`<p>${esc(t.notes).replace(/\n/g,'<br>')}</p>`:''}${t.tools?`<p class="small">Tools: ${esc(t.tools).replace(/\n/g,', ')}</p>`:''}${t.image?`<img class="attachment" src="${safeImage(t.image)}" alt="Task attachment">`:''}<div class="row">${button('Save reusable','save-template',t.id,'ghost')}${button(t.paused?'Resume task':'Pause task','pause-task',t.id,'ghost')}</div>`)}</article>`;}
 function safeImage(src){return /^(data:image\/(png|jpeg|webp|gif);base64,|blob:)/.test(src)?esc(src):'';}
 function childrenHtml(t,parent='',depth=0){return t.children.filter(c=>(c.parentId||'')===parent).map(c=>`<div class="child ${depth?'nested-child':''}"><div class="row"><span class="grow ${c.done?'muted':''}">${c.done?'✓ ':''}${esc(c.title)}</span>${button(c.done?'Undo':'I did a thing','child-complete',t.id,'ghost',`data-child="${esc(c.id)}"`)}</div>${detail('Options',`<div class="row">${button('First','child-first',t.id,'ghost',`data-child="${esc(c.id)}"`)}${button('Last','child-last',t.id,'ghost',`data-child="${esc(c.id)}"`)}${button(stopwatch,'timer',t.id,'icon-button',`data-child="${esc(c.id)}" aria-label="Stopwatch for ${esc(c.title)}"`)}${button('Edit','edit-child',t.id,'ghost',`data-child="${esc(c.id)}"`)}${button('+ Subtask','add-child',t.id,'ghost',`data-child="${esc(c.id)}"`)}</div>`)}${childrenHtml(t,c.id,depth+1)}</div>`).join('');}
 function roomPage(){const r=room(roomId);if(!r)return '<p class="empty">Choose a room from House.</p>';return `<div class="row spread"><h1>${esc(r.name)}</h1>${button('◎ Focus!','focus',r.id)}</div>${roomScene(r)}${tabs([['tasks','Tasks'],['side','Side quests'],['homeless','Homeless']],tab,'room-tab','nested')}${tab==='side'?tabs(sideChoices(),sideTab,'side-tab','nested'):''}${tab==='homeless'?homelessPage(r):`${taskToolbar()}${taskList(visibleTasks())}`}${detail('Room options',button('Adjust mess level','calibrate',r.id)+button('Schedule · later','later','schedule','ghost'))}`;}
 function sideChoices(){return [['all','All'],...M.sideTabs.map(t=>[t.id,t.name]),...F().sideTabs.map(t=>[t.id,t.name])];}
-function doingPage(){return `${tabs([['doing','Doing Now'],['attention','Needs done'],['laundry','Laundry']],doingTab,'doing-tab','nested')}${doingTab==='laundry'?laundryPage(false):`<div class="doing-add">${button('＋ Add a task','add-task','','add-task-button')}</div>${groupedTasks(visibleTasks())}${deleted&&deleted.page===pageKey()?button('Undo deleted','undo-delete','','ghost'):''}`}`;}
+// Use locally rendered clock time for the daily clear-down. A Monday completion stays
+// visible throughout Tuesday and leaves Doing Now at 03:00 on Wednesday. The saved task,
+// completion wins, rewards, and future Task Data inputs are never deleted here.
+function completionTime(t){
+ const candidates=[t.completedAt,t._cycle?.at,t.doneAt,...F().wins.filter(w=>w.taskId===t.id||w.rootId===t.id||t.children.some(c=>c.id===w.taskId)).map(w=>w.at)];
+ const times=candidates.map(x=>x?Date.parse(x):NaN).filter(Number.isFinite);
+ return times.length?Math.max(...times):0;
+}
+function completedDeadline(t){
+ const time=completionTime(t);if(!time)return 0;
+ const date=new Date(time);
+ return new Date(date.getFullYear(),date.getMonth(),date.getDate()+2,3,0,0).getTime();
+}
+function dateLabel(value){const d=new Date(value);return Number.isFinite(d.getTime())?d.toLocaleString('en-GB',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}):'Not recorded';}
+function creatorLabel(t){const from=t.createdByName||t.addedByName||t.creatorName||t.createdBy?.name||t.createdBy||t.androidTask?.createdByName||t.androidTask?.addedByName;return typeof from==='string'&&from.trim()?from:'Not recorded';}
+function doingTaskCard(t){
+ const expanded=openTasks.has(t.id),count=t.children.filter(c=>c.done).length;
+ return `<article class="task doing-task" data-task-id="${esc(t.id)}" draggable="true">
+ <div class="doing-task-main">
+ ${button(t.doing?'Not on it':"I'm on it!",'select-task',t.id,'select-task doing-select',`aria-pressed="${t.doing}" aria-label="${t.doing?'Remove from':'Add to'} Doing Now: ${esc(t.title)}"`)}
+ ${button(esc(t.title)+(t.children.length?` <span class="expand-indicator" aria-hidden="true">${expanded?'▾':'▸'}</span>`:''),'expand',t.id,'ghost doing-task-title',`aria-expanded="${expanded}"`)}
+ ${t.children.length?`<span class="doing-subtask-count" aria-label="${count} of ${t.children.length} subtasks complete">${count}/${t.children.length}</span>`:''}
+ </div>
+ ${doingDetailed?`<div class="doing-meta"><span>Added: ${esc(dateLabel(t.createdAt))}</span><span>By: ${esc(creatorLabel(t))}</span><span>Assigned: ${esc(t.assigned||'Anyone')}</span></div>`:''}
+ ${expanded?doingChildren(t):''}
+ <div class="doing-task-actions">
+ ${button('First','first',t.id,'first doing-order')}${button('Last','last',t.id,'last doing-order')}
+ ${button('⋯','task-menu',t.id,'doing-more',`aria-label="More actions for ${esc(t.title)}"`)}
+ ${button('✓ I did a thing!','complete',t.id,'complete doing-complete')}
+ </div></article>`;
+}
+function doingChildren(t,parent='',depth=0){
+ return t.children.filter(c=>(c.parentId||'')===parent).sort((a,b)=>Number(a.done)-Number(b.done)).map(c=>`
+ <div class="child doing-child ${c.done?'child-finished':''} ${depth?'nested-child':''}" data-child-id="${esc(c.id)}" data-root-id="${esc(t.id)}" data-parent-id="${esc(parent)}">
+ <button type="button" class="child-grip" draggable="true" aria-label="Drag to reorder ${esc(c.title)}" title="Drag to reorder; Alt + arrow keys also work">⠿</button>
+ <span class="doing-child-title ${c.done?'muted':''}">${c.done?'✓ ':''}${esc(c.title)}</span>
+ ${button(c.done?'Undo':'✓ I did a thing!','child-complete',t.id,c.done?'child-undo':'child-done',`data-child="${esc(c.id)}"`)}
+ </div>${doingChildren(t,c.id,depth+1)}`).join('');
+}
+function completedDoingList(tasks){
+ if(!tasks.length)return '';
+ return `<section class="doing-finished" aria-label="Recently completed tasks"><h2>Completed</h2><div class="doing-finished-rows">${tasks.map(t=>`<div class="doing-finished-row"><span>✓ ${esc(t.title)}</span>${button('Undo','complete',t.id,'doing-undo')}</div>`).join('')}</div></section>`;
+}
+function doingPage(){
+ const nav=tabs([['doing','Doing Now'],['laundry','Laundry'],['attention','Needs Done']],doingTab,'doing-tab','nested');
+ if(doingTab==='laundry'){nextDoingExpiry=0;return `<div class="doing-board">${nav}${laundryPage(false)}</div>`;}
+ const list=visibleTasks(),active=list.filter(t=>!t.done),now=Date.now();
+ const recent=list.filter(t=>t.done&&completedDeadline(t)>now);
+ nextDoingExpiry=recent.length?Math.min(...recent.map(completedDeadline)):0;
+ const view=`<div class="doing-view" role="group" aria-label="Task view">${button('Compact','set-doing-view','compact',doingDetailed?'':'selected',`aria-pressed="${!doingDetailed}"`)}${button('Detailed','set-doing-view','detailed',doingDetailed?'selected':'',`aria-pressed="${doingDetailed}"`)}</div>`;
+ return `<div class="doing-board">${nav}<div class="doing-toolbar">${view}${button('＋ Add a task','add-task','','add-task-button')}</div>${active.length?groupedTasks(active):'<p class="empty">No active tasks to show</p>'}${completedDoingList(recent)}${deleted&&deleted.page===pageKey()?button('Undo deleted','undo-delete','','ghost'):''}</div>`;
+}
 function guardianThumb(id){const r=room(id);if(!r)return '';const key=houseKey(r)==='storage'?'craft':houseKey(r),known=['craft','cats','print','penny','hall','bathroom','master','living','kitchen','entrance'].includes(key);return known?`<span class="guardian-thumb" style="background-image:url('${asset(`sprites/${key}-states.webp`)}')" role="img" aria-label="${esc(r.name)} character"></span>`:'<span class="guardian-thumb simple-room" aria-hidden="true">⌂</span>';}
-function groupedTasks(list){if(!list.length)return '<p class="empty">No tasks to show</p>';const groups=[...new Set(list.map(t=>t.room))];return groups.map(id=>`<section class="room-task-section"><div class="room-heading">${guardianThumb(id)}${button(`${collapsed.has(id)?'▸':'▾'} ${esc(room(id)?.name||'Homeless')}`,'collapse',id,'ghost grow room-name')}${room(id)?button('Focus','focus',id,'room-focus'):''}${button('Tools','tools',id,'room-tools')}</div>${collapsed.has(id)?'':taskList(list.filter(t=>t.room===id))}</section>`).join('');}
+function groupedTasks(list){if(!list.length)return '<p class="empty">No tasks to show</p>';const groups=[...new Set(list.map(t=>t.room))];return groups.map(id=>`<section class="room-task-section"><div class="room-heading"><div class="room-heading-identity">${guardianThumb(id)}${button(`${collapsed.has(id)?'▸':'▾'} ${esc(room(id)?.name||'Homeless')}`,'collapse',id,'ghost grow room-name',`aria-expanded="${!collapsed.has(id)}"`)}</div><div class="room-heading-controls">${room(id)?button('Focus','focus',id,'room-focus'):''}${button('Tools','tools',id,'room-tools')}</div></div>${collapsed.has(id)?'':taskList(list.filter(t=>t.room===id))}</section>`).join('');}
 
 function sidePage(){return `${tabs(sideChoices(),sideTab,'side-tab','nested')}${button('＋ New tab','new-side-tab','', 'ghost')}${taskToolbar()}${taskList(visibleTasks())}`;}
 function laundryLoad(l,compact){const ready=l.step===1&&l.startedAt&&Date.now()-l.startedAt>=7200000,title=l.uniformWeek?'Uniform · put away':l.route==='dryer'?'Washing & dryer':'Washing & rail';return `<section class="${compact?'':'card'}"><div class="laundry-card"><img src="${asset(l.route==='dryer'?'laundry-dryer.svg':'laundry-rail.svg')}" alt="${l.route==='dryer'?'Tumble dryer':'Clothes hanging on a rail'}"><div class="grow"><h3>${title}</h3>${!compact?`<div class="small">Load ${l.slot} · Step ${l.step+1} of 3</div>`:''}${l.step!==0?`<p class="small">${esc(M.laundryText(F(),l))}</p>`:''}${ready?'<p class="gold small">load is ready, rewash = money down the drain</p>':''}<div class="row">${l.step===1?button('Put out','laundry-step',l.slot,'', 'data-route="rail"')+button('Dryer','laundry-step',l.slot,'','data-route="dryer"'):button(l.step===0?esc(F().wash):'Done it!','laundry-step',l.slot)}${l._undo?button('Undo last step','laundry-undo',l.slot,'ghost'):''}</div></div></div></section>`;}
@@ -96,7 +151,7 @@ const actions={
  extra:()=>dialog('Extra rooms',rooms().filter(r=>!positions[houseKey(r)]).map(r=>button(esc(r.name),'dialog-room',r.id,'wide')).join('')||'<p>No extra rooms</p>'),
  'all-rooms':()=>dialog('All rooms',rooms().map(r=>button(esc(r.name),'dialog-room',r.id,'wide')).join('')),
  'dialog-room':el=>{closeDialog(true);navigate('room',el.dataset.id)},'room-tab':el=>{tab=el.dataset.id;search='';render()},'doing-tab':el=>{doingTab=el.dataset.id;search='';render()},'side-tab':el=>{sideTab=el.dataset.id;render()},
- view:()=>{detailed=!detailed;render()},search:()=>{uiSearch=!uiSearch;if(!uiSearch)search='';render();$('#task-search')?.focus()},
+ view:()=>{detailed=!detailed;render()},'set-doing-view':el=>{doingDetailed=el.dataset.id==='detailed';try{localStorage.setItem(DOING_VIEW_KEY,doingDetailed?'detailed':'compact')}catch{}render()},'task-menu':el=>{const t=task(el.dataset.id);if(!t)return;dialog('Task actions · '+t.title,`<div class="doing-menu-grid">${button('✎ Edit task','edit-task',t.id)}${button('＋ Add subtask','add-child',t.id)}${button(stopwatch+' Timer','timer',t.id)}${button('Save reusable','save-template',t.id)}${button(t.paused?'Resume task':'Pause task','pause-task',t.id)}${button('Delete task','delete-task',t.id)}</div>${t.notes?`<p>${esc(t.notes).replace(/\n/g,'<br>')}</p>`:''}${t.tools?`<p class="small">Tools: ${esc(t.tools).replace(/\n/g,', ')}</p>`:''}${t.image?`<img class="attachment" src="${safeImage(t.image)}" alt="Task attachment">`:''}`)},search:()=>{uiSearch=!uiSearch;if(!uiSearch)search='';render();$('#task-search')?.focus()},
  'add-task':()=>taskEditor(),'edit-task':el=>taskEditor(task(el.dataset.id)),expand:el=>{const id=el.dataset.id;openTasks.has(id)?openTasks.delete(id):openTasks.add(id);render()},
  'select-task':el=>change(b=>M.select(b,el.dataset.id,el.type==='checkbox'?el.checked:!task(el.dataset.id).doing)),
  complete:el=>{const t=task(el.dataset.id);const complete=()=>change(b=>M.finish(b,t.id,!t.done));if(!t.done&&t.children.some(c=>!c.done)){openTasks.add(t.id);confirmDialog('Done em all',`Complete all subtasks in ${t.title}?`,complete,'Done em all');}else complete()},
@@ -152,12 +207,72 @@ case 'name-form':change(b=>b.features.displayName=String(fd.get('name')).trim())
 case 'tools-form':change(b=>b.features.tools=[...new Set(String(fd.get('tools')).split('\n').map(s=>s.trim()).filter(Boolean))]);notice('Tools saved');break;
 default:await window.TidySharing?.submit?.(e.target,fd);}}catch(err){notice(err.message)}});
 let searchTimer;document.addEventListener('input',e=>{if(e.target.id==='task-search'){search=e.target.value;const start=e.target.selectionStart;clearTimeout(searchTimer);searchTimer=setTimeout(()=>{render();$('#task-search')?.focus();$('#task-search')?.setSelectionRange(start,start)},180)}});
-let dragged=null;document.addEventListener('dragstart',e=>{const card=e.target.closest('[data-task-id]');if(card){dragged=card.dataset.taskId;e.dataTransfer.setData('text/plain',dragged);e.dataTransfer.effectAllowed='move';}});document.addEventListener('dragover',e=>{if(dragged&&e.target.closest('[data-task-id]'))e.preventDefault()});document.addEventListener('drop',e=>{const target=e.target.closest('[data-task-id]');if(!dragged||!target)return;e.preventDefault();const to=target.dataset.taskId,from=dragged;dragged=null;const a=task(from),b=task(to);if(a&&b&&a.room===b.room&&a.side===b.side&&!a.done&&!b.done)change(b=>M.move(b,from,to,route==='doing'&&doingTab==='doing'));else notice('Move tasks within the same room and task section.')});
+// Reordering never creates/deletes tasks, changes completion, or touches history.
+function reorderChild(rootId,from,to,after=false){
+ if(from===to)return;
+ const t=task(rootId),source=t?.children.find(c=>c.id===from),dest=t?.children.find(c=>c.id===to);
+ if(!source||!dest||(source.parentId||'')!==(dest.parentId||'')){notice('Move subtasks within the same parent.');return;}
+ change(b=>{
+  const root=b.tasks.find(t=>t.id===rootId),family=new Set([from]);
+  for(let i=0;i<root.children.length;i++)root.children.forEach(c=>{if(family.has(c.parentId))family.add(c.id)});
+  const moving=root.children.filter(c=>family.has(c.id));
+  const remaining=root.children.filter(c=>!family.has(c.id)),index=remaining.findIndex(c=>c.id===to);
+  if(index<0)return;
+  remaining.splice(index+(after?1:0),0,...moving);root.children=remaining;
+ });
+}
+let dragged=null,draggedChild=null,touchChildDrag=null;
+function clearChildOver(){document.querySelectorAll('.doing-child.drag-over').forEach(x=>x.classList.remove('drag-over'));}
+function eligibleChildTarget(el,info){const target=el?.closest?.('[data-child-id]');return target&&target.dataset.rootId===info.root&&target.dataset.parentId===info.parent&&target.dataset.childId!==info.child?target:null;}
+document.addEventListener('dragstart',e=>{
+ const handle=e.target.closest('.child-grip');
+ if(handle){const row=handle.closest('[data-child-id]');draggedChild={root:row.dataset.rootId,child:row.dataset.childId,parent:row.dataset.parentId};dragged=null;e.stopPropagation();e.dataTransfer?.setData('text/plain',row.dataset.childId);if(e.dataTransfer)e.dataTransfer.effectAllowed='move';return;}
+ if(e.target.closest('.doing-child')){e.preventDefault();return;}
+ const card=e.target.closest('[data-task-id]');if(card){dragged=card.dataset.taskId;e.dataTransfer?.setData('text/plain',dragged);if(e.dataTransfer)e.dataTransfer.effectAllowed='move';}
+});
+document.addEventListener('dragover',e=>{
+ if(draggedChild){const hit=eligibleChildTarget(e.target,draggedChild);if(hit){e.preventDefault();clearChildOver();hit.classList.add('drag-over');}return;}
+ if(dragged&&e.target.closest('[data-task-id]'))e.preventDefault();
+});
+document.addEventListener('drop',e=>{
+ if(draggedChild){const hit=eligibleChildTarget(e.target,draggedChild),info=draggedChild;draggedChild=null;clearChildOver();if(hit){e.preventDefault();e.stopPropagation();reorderChild(info.root,info.child,hit.dataset.childId);}return;}
+ const target=e.target.closest('[data-task-id]');if(!dragged||!target)return;
+ e.preventDefault();const to=target.dataset.taskId,from=dragged;dragged=null;const a=task(from),b=task(to);
+ if(a&&b&&a.room===b.room&&a.side===b.side&&!a.done&&!b.done)change(b=>M.move(b,from,to,route==='doing'&&doingTab==='doing'));
+ else notice('Move tasks within the same room and task section.');
+});
+document.addEventListener('dragend',()=>{dragged=null;draggedChild=null;clearChildOver()});
+// Native HTML drag is unreliable on touch browsers: pointer events on the grip supply it.
+document.addEventListener('pointerdown',e=>{
+ if(e.pointerType==='mouse')return;
+ const handle=e.target.closest('.child-grip');if(!handle)return;
+ const row=handle.closest('[data-child-id]');if(!row)return;
+ e.preventDefault();touchChildDrag={pointer:e.pointerId,root:row.dataset.rootId,child:row.dataset.childId,parent:row.dataset.parentId,fromX:e.clientX,fromY:e.clientY,over:null};
+ handle.setPointerCapture?.(e.pointerId);
+});
+document.addEventListener('pointermove',e=>{
+ const move=touchChildDrag;if(!move||move.pointer!==e.pointerId)return;
+ if(Math.hypot(e.clientX-move.fromX,e.clientY-move.fromY)<6)return;
+ const hit=eligibleChildTarget(document.elementFromPoint(e.clientX,e.clientY),move);
+ clearChildOver();if(hit){hit.classList.add('drag-over');move.over=hit.dataset.childId;}else move.over=null;
+});
+document.addEventListener('pointerup',e=>{
+ const move=touchChildDrag;if(!move||move.pointer!==e.pointerId)return;
+ touchChildDrag=null;clearChildOver();if(move.over)reorderChild(move.root,move.child,move.over);
+});
+document.addEventListener('pointercancel',()=>{touchChildDrag=null;clearChildOver()});
+// Accessible alternative without extra visible options on subtasks.
+document.addEventListener('keydown',e=>{
+ const grip=e.target.closest?.('.child-grip');if(!grip||!e.altKey||!['ArrowUp','ArrowDown'].includes(e.key))return;
+ const row=grip.closest('[data-child-id]'),siblings=[...document.querySelectorAll('.doing-child')].filter(x=>x.dataset.rootId===row.dataset.rootId&&x.dataset.parentId===row.dataset.parentId&&!x.classList.contains('child-finished')===!row.classList.contains('child-finished'));
+ const idx=siblings.indexOf(row),next=siblings[idx+(e.key==='ArrowUp'?-1:1)];if(!next)return;
+ e.preventDefault();reorderChild(row.dataset.rootId,row.dataset.childId,next.dataset.childId,e.key==='ArrowDown');
+});
 document.addEventListener('change',async e=>{const file=e.target.files?.[0];if(!file||!['backup-file','csv-file'].includes(e.target.id))return;try{if(file.size>15*1024*1024)throw Error('Choose a backup smaller than 15 MB.');const text=await file.text();if(e.target.id==='backup-file'){const incoming=M.normalize(JSON.parse(text)),added=incoming.tasks.filter(t=>!board.tasks.some(x=>x.id===t.id)).length;confirmDialog('Preview backup import',`${incoming.rooms.length} rooms · ${incoming.tasks.length} task families · ${incoming.features.wins.length} completion records. ${added} new task families will be added. Matching identities and all current work are kept.`,()=>change(b=>Object.assign(b,M.merge(b,incoming))),'Import and merge');}else{const rows=parseCSV(text),header=rows.shift()||[];if(!header.includes('title')||!header.includes('room'))throw Error('CSV needs title and room columns.');const added=rows.filter(r=>r.some(Boolean)).map(r=>Object.fromEntries(header.map((h,i)=>[h,r[i]||'']))).map(r=>{const found=board.rooms.find(x=>x.id===r.room||x.name.toLowerCase()===r.room.toLowerCase());if(r.room&&!found)throw Error('Unknown room: '+r.room);if(!r.title.trim())throw Error('Every task needs a title.');if(r.sidequest&&!['true','false'].includes(r.sidequest.toLowerCase()))throw Error('sidequest must be true or false.');return M.task({title:r.title.trim(),room:found?.id||'',side:r.sidequest.toLowerCase()==='true',tools:r.tools||'',notes:r.notes||''})}).filter(t=>!board.tasks.some(x=>x.title===t.title&&x.room===t.room));confirmDialog('Preview task upload',`${added.length} new tasks. Existing tasks are kept and matching title/room pairs are skipped.`,()=>change(b=>added.reverse().forEach(t=>M.add(b,t))),'Add these tasks');}}catch(err){notice(err.message)}finally{e.target.value=''}});
 function parseCSV(text){const rows=[];let row=[],value='',quoted=false;for(let i=0;i<text.length;i++){const c=text[i];if(c==='"'){if(quoted&&text[i+1]==='"'){value+='"';i++}else quoted=!quoted;}else if(c===','&&!quoted){row.push(value);value='';}else if((c==='\n'||c==='\r')&&!quoted){if(c==='\r'&&text[i+1]==='\n')i++;row.push(value);rows.push(row);row=[];value='';}else value+=c;}if(quoted)throw Error('CSV contains an unclosed quote.');if(value||row.length){row.push(value);rows.push(row)}return rows;}
 window.addEventListener('storage',e=>{if(e.key!==KEY||!e.newValue||e.newValue===lastSaved)return;try{const incoming=M.normalize(JSON.parse(e.newValue));if(editor.open){pendingExternal=incoming;notice('Another tab saved changes. Your open form is kept; close and reopen it before saving.');}else{lastSaved=e.newValue;board=incoming;render();}}catch{notice('Another tab supplied invalid data. The open board has been preserved.')}});
 function reminders(){const f=F();for(const l of f.laundry){if(l.step!==1||!l.startedAt||Date.now()-l.startedAt<7200000||Date.now()-(l.lastReminderAt||0)<1800000)continue;if('Notification'in window&&Notification.permission==='granted'){try{new Notification('Tidy-ish · laundry',{body:'load is ready, rewash = money down the drain',tag:'tidyish-html-laundry-'+l.slot,icon:'assets/app-icons/icon-192.png'});change(b=>b.features.laundry.find(x=>x.slot===l.slot).lastReminderAt=Date.now(),{redraw:false,sync:false});}catch{}}}}
 window.TidyUI={getBoard:()=>board,change,render,notice,dialog,closeDialog,confirmDialog,button,field,area,check,select,card,detail,esc,navigate,exportBoard,storageKey:KEY,editing:()=>editor.open,acceptSync(next){persist(next);if(!editor.open)render();},onSyncStatus(){if(route==='settings'&&!editor.open)render();}};
-render();setInterval(updateClocks,1000);setInterval(()=>{if(!editor.open){const next=M.clone(board);M.refresh(next);if(JSON.stringify(next)!==JSON.stringify(board))change(b=>Object.assign(b,next));reminders();if(route==='laundry'||route==='home'||route==='doing'&&doingTab==='laundry')render();}},30000);
+render();setInterval(updateClocks,1000);setInterval(()=>{if(!editor.open){const next=M.clone(board);M.refresh(next);if(JSON.stringify(next)!==JSON.stringify(board))change(b=>Object.assign(b,next));reminders();if(route==='laundry'||route==='home'||route==='doing'&&doingTab==='laundry'||route==='doing'&&nextDoingExpiry&&Date.now()>=nextDoingExpiry)render();}},30000);
 if(location.hash.includes('access_token=')||new URLSearchParams(location.search).has('code')){route='settings';render();window.addEventListener('tidy-sharing-ready',()=>window.TidySharing.init().catch(e=>notice(e.message)),{once:true});}
 })();
